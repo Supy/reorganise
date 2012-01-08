@@ -11,7 +11,7 @@ Gem::Specification.new do |s|
   s.summary     = "Sorts and renames your series."
   s.description = "Sorts and renames your series."
 
-  s.rubyforge_project = "resort"
+  s.rubyforge_project = "reorganise"
 
 
   s.files         = `git ls-files`.split("\n")
@@ -19,6 +19,6 @@ Gem::Specification.new do |s|
   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
   s.require_paths = ["lib"]
 
-  s.add_runtime_dependency "tvdb_party"
+  s.add_runtime_dependency "to_regexp"
 
 end
