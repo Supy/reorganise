@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
-module Resort
-	class Cli
+module Reorganise
+	class Reorganise
 
 		def initialize()
 			puts "Hi"
@@ -14,5 +14,4 @@ module Resort
 	end
 end
 
-r = Resort::Cli.new
-r.say_hello
+Reorganise::Reorganise.new

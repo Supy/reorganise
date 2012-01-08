@@ -1,13 +1,13 @@
 # -*- encoding: utf-8 -*-
 $:.push File.expand_path("../lib", __FILE__)
-require "resort/version"
+require "reorganise/version"
 
 Gem::Specification.new do |s|
-  s.name        = "resort"
-  s.version     = Resort::VERSION
+  s.name        = "reorganise"
+  s.version     = Reorganise::VERSION
   s.authors     = ["Justin Cossutti"]
   s.email       = ["justin.cossutti@gmail.com"]
-  s.homepage    = "http://rubygems.org/gems/resort"
+  s.homepage    = "http://rubygems.org/gems/reorganise"
   s.summary     = "Sorts and renames your series."
   s.description = "Sorts and renames your series."
 
