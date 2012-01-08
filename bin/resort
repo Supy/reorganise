@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+
+module Resort
+	class Cli
+
+		def initialize()
+			puts "Hi"
+		end
+
+		def say_hello
+			puts "RAR!"
+		end
+
+	end
+end
+
+r = Resort::Cli.new
+r.say_hello
