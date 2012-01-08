@@ -7,7 +7,7 @@ Gem::Specification.new do |s|
   s.version     = Resort::VERSION
   s.authors     = ["Justin Cossutti"]
   s.email       = ["justin.cossutti@gmail.com"]
-  s.homepage    = ""
+  s.homepage    = "http://rubygems.org/gems/resort"
   s.summary     = "Sorts and renames your series."
   s.description = "Sorts and renames your series."
 
