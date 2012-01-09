@@ -7,7 +7,7 @@ module Reorganise
 		require 'to_regexp'
 		require 'fileutils'
 
-		attr_accessor :options, :matcher, :extensions, :directory, :series_name
+		attr_accessor :options, :matcher, :extensions, :directory, :series_name, :output_dir
 
 		def initialize(argv)
 		
@@ -27,8 +27,12 @@ module Reorganise
 				@options[:regex] = @matcher
 
 				opts.on('-i', '--input-dir DIRECTORY', 'Specifies where to look for episodes to rename.') do |dir_name|
-					@options[:directory] = dir_name
+					@options[:input_directory] = dir_name.gsub(/\\/, "/")
 				end		
+			
+				opts.on('-o', '--output-dir DIRECTORY', 'Specifies where to move renamed files to. Default is the input directory.') do |dir_name|
+					@options[:output_directory] = dir_name.gsub(/\\/, "/")
+				end			
 
 				opts.on('-n', '--name NAME', 'What to rename the series to. Title is derived from series if not given.') do |name|
 					@options[:series_name] = sanitize_user_string(name)
@@ -58,27 +62,33 @@ module Reorganise
 		end
 
 		def sort!
-			@directory = @options[:directory]
+			@directory = @options[:input_directory]
 			@series_name = @options[:series_name]
+			@output_dir = @options[:output_directory]
 		
-			if directory.nil? or !Dir.exists?(directory)
-				puts "ERROR: Directory '#{directory}' does not exist. Run with -h for more information."
+			if directory.nil? or !Dir.exists?(@directory)
+				puts "ERROR: Directory '#{@directory}' does not exist. Run with -h for more information."
 				exit
 			end
 		
-			Dir.chdir(directory)
+			if @output_dir and !Dir.exists?(@output_dir)
+				puts "ERROR: Destination directory #{@output_dir} does not exist."		
+				exit
+			end
+		
+			Dir.chdir(@directory)
 			filenames = Dir.glob("**/*.{#{@extensions.join(",")}}")
 
 			puts "------------------------------------------------------------------------"
 			puts "Finding all files with the following extensions: #{@extensions.join(", ")}"
 			puts ""
-			puts "Directory: #{directory}"
+			puts "Directory: #{@directory}"
 			puts "Found #{filenames.size} files."
 			puts "------------------------------------------------------------------------"
 			puts ""
 			puts ""
 			puts "!!! NOTICE: This is a PRETEND renaming to show what would happen. !!! "
-			puts "To confirm the renaming of files, run the command again with -c. e.g. `reorganise -c -d [directory] -n [series name]"
+			puts "To confirm the renaming of files, run the command again with -c. e.g. `reorganise -c -i [input-dir]"
 			puts ""
 			puts ""
 			puts "Starting to rename files using regex #{@options[:regex]}..."
@@ -90,36 +100,56 @@ module Reorganise
 					if details = parse_filename(filename)
 				
 							old_directory = File.absolute_path(File.dirname(filename))
+							old_file = File.join(old_directory, details[:basename])
 						
-							# Check to see if the files were already organised into season folders
-							if old_directory.split("/").last.downcase == "season #{details[:season].to_i}"
-								target_directory = old_directory
+							unless @output_dir
+								# Check to see if the files were already organised into season folders
+								if old_directory.split("/").last =~ /^(?:season (\d+)|s(\d+))$/i and details[:season].to_i == ($1 || $2).to_i
+									target_directory = old_directory
+								else
+									target_directory = File.join(old_directory, "Season #{details[:season].to_i}")
+								end
 							else
-								target_directory = File.join(old_directory, "Season #{details[:season].to_i}")
+								unless details[:series_name].nil? or details[:series_name].empty?
+									target_directory = File.join(@output_dir, details[:series_name], "Season #{details[:season].to_i}")
+								else
+									puts "ERROR: Cannot move #{old_file} as it does not have a series name and none was supplied. Please supply a series name with -n [series name]."
+									next
+								end
 							end
 						
 							if details[:series_name]
 								renamed_file = "#{details[:series_name]} - S#{details[:season]}E#{details[:episode]}#{details[:ext]}"
 							else
 								renamed_file = "S#{details[:season]}E#{details[:episode]}#{details[:ext]}"
-							end
+							end						
 						
-							# Perform mv if confimed
-							if @options[:confirm]
-								FileUtils.mkdir_p(target_directory)
-								FileUtils.mv(File.join(old_directory, details[:basename]), File.join(target_directory, renamed_file))
-							end
-				
-							if @options[:verbose] or !@options[:confirm]
-								puts "-: #{File.join(old_directory, details[:basename])}"
-								puts "+: #{File.join(target_directory, renamed_file)}"
-								puts ""
+							target_file = File.join(target_directory, renamed_file)
+						
+							# Check if the target file already exists
+							unless File.file?(target_file)
+						
+								if @options[:verbose] or !@options[:confirm]
+									puts "-: #{old_file}"
+									puts "+: #{target_file}"
+									#puts ""
+								end							
+												
+								# Perform mv if confimed
+								if @options[:confirm]
+									FileUtils.mkdir_p(target_directory)
+									FileUtils.mv(old_file, target_file)
+									try_delete_folder(old_directory)
+								end
+							
+							else						
+								puts "ERROR: Could not move #{old_file} to #{target_file} as it already exists."													
 							end
 					else
-						puts "ERROR: Skipped file \"#{filename}\" due to invalid file format."
+						puts "ERROR: Skipped file #{filename} due to invalid file format."
 					end
 				else
-					puts "ERROR: Skipped non-file \"#{filename}\"."
+					puts "ERROR: Skipped non-file #{filename}."
 				end			
 
 			end
@@ -144,8 +174,8 @@ module Reorganise
 		
 			parts.each_with_index do |v, k|
 				if v =~ @matcher
-					season = "%02d" % ($1 || $3 || $5).to_i
-					episode = "%02d" % ($2 || $4 || $6).to_i
+					season = "%02d" % ($1 || $3 || $5 || $7).to_i
+					episode = "%02d" % ($2 || $4 || $6 || $8).to_i
 					position = k
 				
 					break if position != -1
@@ -166,6 +196,18 @@ module Reorganise
 				false 
 			end
 		end	
+	
+		def try_delete_folder(directory)
+			files = Dir.glob(File.join(directory, "*"))
+			if files.empty?		
+				puts "Deleting empty folder: #{directory}" if @options[:verbose]			
+				begin
+				  FileUtils.rmdir(directory)
+				rescue Errno::ENOTEMPTY
+				  puts "ERROR: Cannot delete folder #{directory} as it is not empty."
+				end
+			end
+		end
 	
 		def sanitize_user_string(str)
 			return false if str.empty?
