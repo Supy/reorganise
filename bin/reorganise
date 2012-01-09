@@ -7,10 +7,10 @@ module Reorganise
 		require 'to_regexp'
 		require 'fileutils'
 
-		attr_accessor :options, :matcher, :extensions, :directory, :series_name, :output_dir
+				attr_accessor :options, :matcher, :extensions, :directory, :series_name, :output_dir
 
 		def initialize(argv)
-		
+			
 			@extensions = [:avi, :mp4, :mkv]		
 			@options = {}
 			@matcher = /(?:S(\d+)x?E(\d+)|(\d{1,2})(\d{2,})|(\d+)x(\d+))/i
@@ -29,7 +29,7 @@ module Reorganise
 				opts.on('-i', '--input-dir DIRECTORY', 'Specifies where to look for episodes to rename.') do |dir_name|
 					@options[:input_directory] = dir_name.gsub(/\\/, "/")
 				end		
-			
+				
 				opts.on('-o', '--output-dir DIRECTORY', 'Specifies where to move renamed files to. Default is the input directory.') do |dir_name|
 					@options[:output_directory] = dir_name.gsub(/\\/, "/")
 				end			
@@ -37,12 +37,12 @@ module Reorganise
 				opts.on('-n', '--name NAME', 'What to rename the series to. Title is derived from series if not given.') do |name|
 					@options[:series_name] = sanitize_user_string(name)
 				end
-			
+				
 				@options[:confirm] = false
 				opts.on('-c', '--confirm', 'Confirms the go ahead to rename files. Only pretends to rename files to show the effects if not given.') do |regex|
 					@options[:confirm] = true
 				end
-			
+				
 				opts.on('-r', '--regexp MATCHER', 'Alternative regexp matcher.') do |regex|
 					@options[:regex] = regex.to_regexp
 				end
@@ -65,17 +65,17 @@ module Reorganise
 			@directory = @options[:input_directory]
 			@series_name = @options[:series_name]
 			@output_dir = @options[:output_directory]
-		
+			
 			if directory.nil? or !Dir.exists?(@directory)
 				puts "ERROR: Directory '#{@directory}' does not exist. Run with -h for more information."
 				exit
 			end
-		
+			
 			if @output_dir and !Dir.exists?(@output_dir)
 				puts "ERROR: Destination directory #{@output_dir} does not exist."		
 				exit
 			end
-		
+			
 			Dir.chdir(@directory)
 			filenames = Dir.glob("**/*.{#{@extensions.join(",")}}")
 
@@ -98,10 +98,10 @@ module Reorganise
 				if File.file?(filename)
 
 					if details = parse_filename(filename)
-				
+					
 							old_directory = File.absolute_path(File.dirname(filename))
 							old_file = File.join(old_directory, details[:basename])
-						
+							
 							unless @output_dir
 								# Check to see if the files were already organised into season folders
 								if old_directory.split("/").last =~ /(?:season (\d+)|^s(\d+)$)/i and details[:season].to_i == ($1 || $2).to_i
@@ -117,31 +117,31 @@ module Reorganise
 									next
 								end
 							end
-						
+							
 							if details[:series_name]
 								renamed_file = "#{details[:series_name]} - S#{details[:season]}E#{details[:episode]}#{details[:ext]}"
 							else
 								renamed_file = "S#{details[:season]}E#{details[:episode]}#{details[:ext]}"
 							end						
-						
+							
 							target_file = File.join(target_directory, renamed_file)
-						
+							
 							# Check if the target file already exists
 							unless File.file?(target_file)
-						
+							
 								if @options[:verbose] or !@options[:confirm]
 									puts "-: #{old_file}"
 									puts "+: #{target_file}"
 									#puts ""
 								end							
-												
+													
 								# Perform mv if confimed
 								if @options[:confirm]
 									FileUtils.mkdir_p(target_directory)
 									FileUtils.mv(old_file, target_file)
 									try_delete_folder(old_directory)
 								end
-							
+								
 							else						
 								puts "ERROR: Could not move #{old_file} to #{target_file} as it already exists."													
 							end
@@ -153,50 +153,66 @@ module Reorganise
 				end			
 
 			end
-		
+			
 			puts ""
 			puts "Finished renaming #{filenames.size} files."
-		
+			
 			if !@options[:confirm]
 				puts ""
 				puts "!!! NOTICE: This was a pretend run, nothing was renamed. !!!"
 				puts "To confirm the renaming, run this command again with -c"
 			end
 		end
-	
+		
 		def parse_filename(filename)
 			basename = File.basename(filename)
 			extension = File.extname(filename)
-		
-			parts = basename.gsub(/[-._]/i, " ").strip.split(" ")
-		
+			
+			cleaned_name = basename.gsub(/[-._]/i, " ").strip
+			parts = cleaned_name.split(" ")
+			
 			position = season = episode = -1
-		
+			
 			parts.each_with_index do |v, k|
 				if v =~ @matcher
 					season = "%02d" % ($1 || $3 || $5 || $7).to_i
 					episode = "%02d" % ($2 || $4 || $6 || $8).to_i
 					position = k
-				
+					
 					break if position != -1
 				end
 			end
-		
-			if position != -1
-				# No title if episode numbers are first
+			
+			if position == -1
+				if cleaned_name =~ /(.*)s(\d){1,2}.?e(\d){1,2}/i
+					title = $1.strip.split(" ")
+					if title.empty?
+						title = nil
+					else
+						title = title.map{|p| p.capitalize}.join(" ")
+					end
+					season = "%02d" % $2
+					episode = "%02d" % $3
+					position = 1
+				end
+			else
 				if position == 0
 					title = (@series_name) ? @series_name : nil
 				else
 					title = parts[0..position-1].map{|p| p.capitalize}.join(" ")
-				end
+				end			
+			end
+					
+			if position != -1
 				details = {:basename => basename, :ext =>  extension, :season => season, :episode => episode}			
 				details[:series_name] = (@series_name.nil?) ? title : @series_name
 				details
 			else
-				false 
-			end
+				return false
+			end		
+			
 		end	
-	
+		
 		def try_delete_folder(directory)
 			files = Dir.glob(File.join(directory, "*"))
 			if files.empty?		
@@ -208,13 +224,12 @@ module Reorganise
 				end
 			end
 		end
-	
+		
 		def sanitize_user_string(str)
 			return false if str.empty?
 			str = str.gsub(/[^\s\w.\-]/, '')
 			str  
 		end
-
 	end
 end
 
