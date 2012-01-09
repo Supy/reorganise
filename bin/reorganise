@@ -22,7 +22,7 @@ module Reorganise
 
 		def parse_options!(argv)
 			optparse = OptionParser.new(argv) do |opts|
-				opts.banner = "Usage: rename.rb [options]\n\nCommand options:"
+				opts.banner = "Usage: reorganise [options]\n\nCommand options:"
 
 				@options[:regex] = @matcher
 
@@ -104,8 +104,8 @@ module Reorganise
 						
 							unless @output_dir
 								# Check to see if the files were already organised into season folders
-								if old_directory.split("/").last =~ /^(?:season (\d+)|s(\d+))$/i and details[:season].to_i == ($1 || $2).to_i
-									target_directory = old_directory
+								if old_directory.split("/").last =~ /(?:season (\d+)|^s(\d+)$)/i and details[:season].to_i == ($1 || $2).to_i
+									target_directory = File.join(old_directory.split("/")[0..-2].join("/"), "Season #{details[:season].to_i}")
 								else
 									target_directory = File.join(old_directory, "Season #{details[:season].to_i}")
 								end
